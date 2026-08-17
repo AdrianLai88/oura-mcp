@@ -1,0 +1,4 @@
+node_modules/
+oura-mcp.service
+oura-mcp-auth.service
+oura-mcp.conf
