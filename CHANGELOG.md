@@ -1,11 +1,9 @@
-### 1.1.0: 2026-08-22
+### 1.1.0: 2026-08-23
 
-* Replace @daveremy/oura-mcp with our own client: it silently returned no
-  sleep periods, no activity and no workouts on every single-day query
-* Add resilience, cardiovascular age, VO2 max, sleep timing, tags, rest
-  mode, ring hardware/battery and personal_info -- the rest of the Oura v2
-  API the old package never covered
-* Drop supergateway; the new server speaks streamable HTTP natively
+* Replace the npm client with our own Oura API v2 client
+* Add resilience, cardiovascular age, VO2 max, sleep timing, tags, rest mode, ring and personal info
+* Drop supergateway
+* Rename the repo from oura-remote-mcp
 
 ### 1.0.0: 2026-08-17
 
