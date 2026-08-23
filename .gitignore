@@ -1,4 +1,9 @@
 node_modules/
+.venv/
+.env
+__pycache__/
+*.egg-info/
+uv.lock
 oura-mcp.service
 oura-mcp-auth.service
 oura-mcp.conf
