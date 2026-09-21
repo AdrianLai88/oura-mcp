@@ -1,30 +1,27 @@
-FROM python:3.12-slim
+FROM node:20-slim
 
-# build-essential + python3 needed for better-sqlite3 native addon (node-gyp)
 RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \
         supervisor \
         build-essential \
         python3 \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install uv --no-cache-dir
+# uv manages Python 3.12 and project dependencies
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:$PATH"
 
 WORKDIR /app
 COPY . .
 
-# Python deps (no uv.lock committed; resolves fresh)
-RUN uv sync
+# Install Python 3.12 via uv then project deps
+RUN uv python install 3.12 && uv sync
 
-# Node deps — force better-sqlite3 to compile from source (avoids pre-built
-# binary ABI mismatches that cause SIGSEGV at runtime)
+# Node deps — build native modules from source for this exact environment
 RUN npm ci --build-from-source
 
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
-# Railway injects PORT; auth-server.js reads process.env.PORT automatically
 EXPOSE 8080
 
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
