@@ -11,7 +11,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const Database = require('better-sqlite3');
+const Database = require('./db-shim');
 
 const PORT = Number(process.env.PORT || 8442);
 const UPSTREAM = process.env.UPSTREAM || 'http://127.0.0.1:8440';
