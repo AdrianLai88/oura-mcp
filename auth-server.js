@@ -89,6 +89,7 @@ purgeExpired();
 // --- password --------------------------------------------------------------
 
 function readPasswordHash() {
+  if (process.env.PASSWORD_HASH) return process.env.PASSWORD_HASH.trim();
   try {
     return fs.readFileSync(PASSWORD_HASH_PATH, 'utf8').trim();
   } catch {
