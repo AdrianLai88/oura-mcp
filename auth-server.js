@@ -660,7 +660,7 @@ app.use((_req, res) => {
   res.status(404).json({ error: 'not_found' });
 });
 
-app.listen(PORT, '127.0.0.1', () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`oura-mcp auth server on 127.0.0.1:${PORT}`);
   console.log(`  issuer:   ${ISSUER}`);
   console.log(`  resource: ${RESOURCE}`);
