@@ -16,12 +16,18 @@ document, both confirmed empirically against the live API:
    exhaustion rather than silently truncating.
 """
 
+import json
 import os
+import ssl
+import time
+import urllib.parse
+import urllib.request
 from datetime import date, datetime, timedelta
 
 import httpx
 
 BASE_URL = "https://api.ouraring.com"
+_OURA_TOKEN_URL = "https://api.ouraring.com/oauth/token"
 
 
 class OuraError(Exception):
@@ -33,21 +39,84 @@ def _iso(d: date) -> str:
 
 
 class OuraClient:
-    """Stateless client for the Oura v2 API, authenticated with a personal access token."""
+    """Client for the Oura v2 API. Accepts a static PAT via OURA_TOKEN or
+    OAuth2 refresh-token rotation via OURA_CLIENT_ID + OURA_CLIENT_SECRET +
+    OURA_REFRESH_TOKEN (refreshed automatically; new refresh token persisted
+    to CONFIG_DIR/oura-tokens.json so container restarts stay authenticated)."""
 
     def __init__(self, *, token: str | None = None) -> None:
-        self._token = token or os.getenv("OURA_TOKEN", "").strip()
-        if not self._token:
-            raise OuraError(
-                "Missing OURA_TOKEN. Generate a personal access token at "
-                "https://cloud.ouraring.com/personal-access-tokens and set "
-                "OURA_TOKEN in the environment."
+        self._client_id = os.getenv("OURA_CLIENT_ID", "").strip()
+        self._client_secret = os.getenv("OURA_CLIENT_SECRET", "").strip()
+        self._token_file = os.path.join(
+            os.getenv("CONFIG_DIR", os.path.expanduser("~/.config/oura-mcp")),
+            "oura-tokens.json",
+        )
+        self._expires_at: float = 0.0
+        self._refresh_token: str | None = None
+
+        static = token or os.getenv("OURA_TOKEN", "").strip()
+        if static:
+            self._token = static
+        elif self._client_id and self._client_secret:
+            self._refresh_token = (
+                self._load_stored_refresh_token()
+                or os.getenv("OURA_REFRESH_TOKEN", "").strip()
             )
+            if not self._refresh_token:
+                raise OuraError(
+                    "OAuth2 mode requires OURA_REFRESH_TOKEN. "
+                    "Run get_refresh_token.py once to obtain one."
+                )
+            self._token = ""
+            self._do_token_refresh()
+        else:
+            raise OuraError(
+                "Set OURA_TOKEN (personal access token) or "
+                "OURA_CLIENT_ID + OURA_CLIENT_SECRET + OURA_REFRESH_TOKEN."
+            )
+
         self._http = httpx.Client(
             base_url=BASE_URL,
             headers={"Authorization": f"Bearer {self._token}"},
             timeout=30.0,
         )
+
+    def _load_stored_refresh_token(self) -> str:
+        try:
+            with open(self._token_file) as f:
+                return json.load(f).get("refresh_token", "")
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            return ""
+
+    def _save_tokens(self) -> None:
+        os.makedirs(os.path.dirname(self._token_file), exist_ok=True)
+        with open(self._token_file, "w") as f:
+            json.dump({"refresh_token": self._refresh_token, "expires_at": self._expires_at}, f)
+
+    def _do_token_refresh(self) -> None:
+        data = urllib.parse.urlencode({
+            "grant_type": "refresh_token",
+            "refresh_token": self._refresh_token,
+            "client_id": self._client_id,
+            "client_secret": self._client_secret,
+        }).encode()
+        ctx = ssl.create_default_context()
+        req = urllib.request.Request(
+            _OURA_TOKEN_URL,
+            data=data,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        with urllib.request.urlopen(req, context=ctx) as resp:
+            tokens = json.loads(resp.read())
+        self._token = tokens["access_token"]
+        self._refresh_token = tokens.get("refresh_token", self._refresh_token)
+        self._expires_at = time.time() + tokens.get("expires_in", 86400) - 60
+        self._save_tokens()
+
+    def _ensure_token(self) -> None:
+        if self._refresh_token and time.time() >= self._expires_at:
+            self._do_token_refresh()
+            self._http.headers["Authorization"] = f"Bearer {self._token}"
 
     def close(self) -> None:
         self._http.close()
@@ -57,6 +126,7 @@ class OuraClient:
     # ------------------------------------------------------------------
 
     def _get(self, path: str, params: dict | None = None) -> dict:
+        self._ensure_token()
         params = {k: v for k, v in (params or {}).items() if v is not None}
         resp = self._http.get(path, params=params)
         if not resp.is_success:
