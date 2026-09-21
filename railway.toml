@@ -1,0 +1,6 @@
+[build]
+builder = "dockerfile"
+
+[deploy]
+healthcheckPath = "/.well-known/oauth-authorization-server"
+restartPolicyType = "on_failure"
