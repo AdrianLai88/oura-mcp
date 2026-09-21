@@ -1,23 +1,20 @@
-FROM node:20-slim
+FROM python:3.12
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        curl \
         supervisor \
-        build-essential \
-        python3 \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# uv manages Python 3.12 and project dependencies
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-ENV PATH="/root/.local/bin:$PATH"
+RUN pip install uv --no-cache-dir
 
 WORKDIR /app
 COPY . .
 
-# Install Python 3.12 via uv then project deps
-RUN uv python install 3.12 && uv sync
+# Python deps
+RUN uv sync
 
-# Node deps — build native modules from source for this exact environment
+# Node deps — build native modules from source
 RUN npm ci --build-from-source
 
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
