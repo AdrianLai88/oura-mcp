@@ -21,6 +21,7 @@ RUN uv python install 3.12 && uv sync
 RUN npm ci --build-from-source
 
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+RUN chmod +x /app/start-auth.sh
 
 EXPOSE 8080
 
