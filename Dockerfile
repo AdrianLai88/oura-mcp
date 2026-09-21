@@ -18,8 +18,9 @@ COPY . .
 # Python deps (no uv.lock committed; resolves fresh)
 RUN uv sync
 
-# Node deps (builds better-sqlite3 native addon)
-RUN npm ci
+# Node deps — force better-sqlite3 to compile from source (avoids pre-built
+# binary ABI mismatches that cause SIGSEGV at runtime)
+RUN npm ci --build-from-source
 
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
